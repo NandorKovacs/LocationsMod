@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "locationsmod",
+  "version": "${version}",
+  "name": "LocationsMod",
+  "description": "Provides a set of commands, that help managing coordinates and locations on servers.",
+  "authors": [
+    "Roaringmind22"
+  ],
+  "contributors": [],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/locationsmod/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "net.roaringmind.locationsmod.LocationsMod"
+    ],
+    "client": [],
+    "server": []
+  },
+  "mixins": [
+    "locationsmod.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.11.3",
+    "fabric": "*"
+  }
+}
