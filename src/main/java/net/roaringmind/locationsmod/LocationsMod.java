@@ -24,7 +24,10 @@ import net.minecraft.command.argument.BlockPosArgumentType;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.LiteralText;
+import net.minecraft.text.Style;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
 
 public class LocationsMod implements ModInitializer {
@@ -252,7 +255,12 @@ public class LocationsMod implements ModInitializer {
   }
 
   private void sendPlayerMessage(UUID uuid, String message, ServerWorld world, Boolean toolBar) {
-    world.getPlayerByUuid(uuid).sendMessage(Text.of("[LocationsMod]" + message), false);
+    LiteralText prefix = new LiteralText("[LocationsMod] ");
+    LiteralText literalMessage = new LiteralText(message);
+    prefix.setStyle(Style.EMPTY.withColor(Formatting.AQUA));
+    literalMessage.setStyle(Style.EMPTY.withColor(Formatting.WHITE));
+
+    world.getPlayerByUuid(uuid).sendMessage(prefix.append(literalMessage), false);
   }
 
   private UUID getUUID(CommandContext<ServerCommandSource> ctx, boolean self) throws CommandSyntaxException {
