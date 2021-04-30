@@ -26,7 +26,6 @@ import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.LiteralText;
 import net.minecraft.text.Style;
-import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
 
@@ -66,18 +65,20 @@ public class LocationsMod implements ModInitializer {
 
   private void registerCommands() {
     CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
-      dispatcher
-          .register(literal("getloc").then(argument("location name", StringArgumentType.string()).executes(ctx -> {
+      dispatcher.register(literal("getloc").then(argument("player", EntityArgumentType.player())
+          .then(argument("location name", StringArgumentType.string()).executes(ctx -> {
+            getLoc(ctx, false);
+            return 0;
+          }))).then(argument("location name", StringArgumentType.string()).executes(ctx -> {
             getLoc(ctx, true);
             return 0;
-          })).then(argument("player", EntityArgumentType.player())
-              .then(argument("location name", StringArgumentType.string()).executes(ctx -> {
-                getLoc(ctx, false);
-                return 0;
-              })).executes(ctx -> {
-                getLocPlayer(ctx);
-                return 0;
-              })));
+          })));
+
+      dispatcher.register(literal("getPloc").then(argument("player", EntityArgumentType.player()).executes(ctx -> {
+        getLocPlayer(ctx);
+        return 0;
+      })
+      ));
 
       dispatcher.register(literal("setloc").then(argument("location name", StringArgumentType.string())
           .then(argument("private", BoolArgumentType.bool()).executes(ctx -> {
@@ -188,17 +189,23 @@ public class LocationsMod implements ModInitializer {
       return;
     }
 
-    if (!publicLocations.containsKey(uuid)) {
+    if (!publicLocations.containsKey(uuid) || publicLocations.get(uuid).size() > 0) {
+      if (self) {
+        sendPlayerMessage(uuid, youHaveNoLocations, world, false);
+        return;
+      }
+
       sendPlayerMessage(uuid, playerHasNoPublicLocations, world, false);
+      return;
     }
 
-    String listMessage = "Public Locations saved by " + world.getPlayerByUuid(uuid) + ":";
+    String listMessage = "Public Locations saved by " + world.getPlayerByUuid(uuid).getName().asString() + ":";
     for (String l : publicLocations.get(uuid)) {
       String listEntry = " - " + l + " ===== " + blockPosToString(locations.get(uuid).get(l));
       listMessage = String.join("\n", listMessage, listEntry);
     }
 
-    sendPlayerMessage(uuid, listMessage, world, false);
+    sendPlayerMessage(uuid, listMessage, world, false, false);
   }
 
   private void setLoc(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
@@ -207,7 +214,11 @@ public class LocationsMod implements ModInitializer {
     BlockPos pos = BlockPosArgumentType.getBlockPos(ctx, "coords");
     Boolean isPrivate = BoolArgumentType.getBool(ctx, "private");
 
-    locations.put(uuid, Map.of(name, pos));
+    if (!locations.containsKey(uuid)) {
+      locations.put(uuid, new HashMap<>());
+    }
+
+    locations.get(uuid).put(name, pos);
 
     if (!isPrivate) {
       if (!publicLocations.containsKey(uuid)) {
@@ -246,21 +257,30 @@ public class LocationsMod implements ModInitializer {
       return;
     }
 
-    if (!(publicLocations.containsKey(uuid) && publicLocations.get(uuid).contains(locName))) {
+    if (!(publicLocations.containsKey(uuid) && publicLocations.get(uuid).contains(locName)) && !self) {
       sendPlayerMessage(uuid, locationIsPrivate, world, false);
+      return;
     }
 
     BlockPos pos = locations.get(uuid).get(locName);
     sendPlayerMessage(uuid, blockPosToString(pos), world, false);
   }
 
-  private void sendPlayerMessage(UUID uuid, String message, ServerWorld world, Boolean toolBar) {
+  private void sendPlayerMessage(UUID uuid, String message, ServerWorld world, Boolean toolBar, Boolean hasPrefix) {
     LiteralText prefix = new LiteralText("[LocationsMod] ");
     LiteralText literalMessage = new LiteralText(message);
     prefix.setStyle(Style.EMPTY.withColor(Formatting.AQUA));
     literalMessage.setStyle(Style.EMPTY.withColor(Formatting.WHITE));
 
+    if (!hasPrefix) {
+      world.getPlayerByUuid(uuid).sendMessage(literalMessage, false);
+    }
+
     world.getPlayerByUuid(uuid).sendMessage(prefix.append(literalMessage), false);
+  }
+
+  private void sendPlayerMessage(UUID uuid, String message, ServerWorld world, Boolean toolBar) {
+    sendPlayerMessage(uuid, message, world, toolBar, true);
   }
 
   private UUID getUUID(CommandContext<ServerCommandSource> ctx, boolean self) throws CommandSyntaxException {
