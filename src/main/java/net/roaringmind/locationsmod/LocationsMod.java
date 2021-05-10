@@ -113,7 +113,7 @@ public class LocationsMod implements ModInitializer {
     ServerWorld world = ctx.getSource().getWorld();
     UUID uuid = getUUID(ctx, true);
     String locName = StringArgumentType.getString(ctx, "location name");
-    Boolean setPrivate = BoolArgumentType.getBool(ctx, "private");
+    boolean setPrivate = BoolArgumentType.getBool(ctx, "private");
 
     if (!locations.containsKey(uuid)) {
       sendPlayerMessage(uuid, youHaveNoLocations, world, false);
@@ -155,8 +155,8 @@ public class LocationsMod implements ModInitializer {
   private void setPlayerPrivate(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
     ServerWorld world = ctx.getSource().getWorld();
     UUID uuid = getUUID(ctx, true);
-    Boolean isPrivate = true;
-    Boolean setPrivate = BoolArgumentType.getBool(ctx, "private");
+    boolean isPrivate = true;
+    boolean setPrivate = BoolArgumentType.getBool(ctx, "private");
 
     if (!privatePlayers.contains(uuid)) {
       isPrivate = false;
@@ -181,49 +181,47 @@ public class LocationsMod implements ModInitializer {
   }
 
   private void locList(CommandContext<ServerCommandSource> ctx, boolean self) throws CommandSyntaxException {
-    UUID uuid = getUUID(ctx, self);
+    UUID sourceUUID = getUUID(ctx, true);
+    UUID targetUUID = getUUID(ctx, self);
     ServerWorld world = ctx.getSource().getWorld();
 
-    if (!locations.containsKey(uuid)) {
-      sendPlayerMessage(uuid, playerHasNoLocations, world, false);
+    if (!locations.containsKey(targetUUID)) {
+      sendPlayerMessage(sourceUUID, playerHasNoLocations, world, false);
       return;
     }
 
-    if (!publicLocations.containsKey(uuid) || publicLocations.get(uuid).size() > 0) {
+    if (!publicLocations.containsKey(targetUUID) || publicLocations.get(targetUUID).isEmpty()) {
       if (self) {
-        sendPlayerMessage(uuid, youHaveNoLocations, world, false);
+        sendPlayerMessage(sourceUUID, youHaveNoLocations, world, false);
         return;
       }
 
-      sendPlayerMessage(uuid, playerHasNoPublicLocations, world, false);
+      sendPlayerMessage(sourceUUID, playerHasNoPublicLocations, world, false);
       return;
     }
 
-    String listMessage = "Public Locations saved by " + world.getPlayerByUuid(uuid).getName().asString() + ":";
-    for (String l : publicLocations.get(uuid)) {
-      String listEntry = " - " + l + " ===== " + blockPosToString(locations.get(uuid).get(l));
+    String listMessage = "Public Locations saved by " + world.getPlayerByUuid(targetUUID).getName().asString() + ":";
+    for (String l : publicLocations.get(targetUUID)) {
+      String listEntry = " - " + l + " ===== " + blockPosToString(locations.get(targetUUID).get(l));
       listMessage = String.join("\n", listMessage, listEntry);
     }
 
-    sendPlayerMessage(uuid, listMessage, world, false, false);
+    sendPlayerMessage(sourceUUID, listMessage, world, false, false);
   }
 
   private void setLoc(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
     UUID uuid = getUUID(ctx, true);
     String name = StringArgumentType.getString(ctx, "location name");
     BlockPos pos = BlockPosArgumentType.getBlockPos(ctx, "coords");
-    Boolean isPrivate = BoolArgumentType.getBool(ctx, "private");
+    boolean isPrivate = BoolArgumentType.getBool(ctx, "private");
 
-    if (!locations.containsKey(uuid)) {
-      locations.put(uuid, new HashMap<>());
-    }
+    locations.computeIfAbsent(uuid, l -> new HashMap<>());
 
     locations.get(uuid).put(name, pos);
 
     if (!isPrivate) {
-      if (!publicLocations.containsKey(uuid)) {
-        publicLocations.put(uuid, new ArrayList<>());
-      }
+      publicLocations.computeIfAbsent(uuid, loc -> new ArrayList<>());
+      
       publicLocations.get(uuid).add(name);
     }
 
@@ -232,51 +230,54 @@ public class LocationsMod implements ModInitializer {
 
   private void getLocPlayer(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
     ServerWorld world = ctx.getSource().getWorld();
-    UUID uuid = getUUID(ctx, false);
+    UUID sourceUUID = getUUID(ctx, true);
+    UUID targetUUID = getUUID(ctx, false);
 
-    if (privatePlayers.contains(uuid)) {
-      sendPlayerMessage(uuid, playerLocIsPrivate, world, false);
+    if (privatePlayers.contains(targetUUID)  && targetUUID != sourceUUID) {
+      sendPlayerMessage(sourceUUID, playerLocIsPrivate, world, false);
       return;
     }
 
-    sendPlayerMessage(uuid, blockPosToString(world.getPlayerByUuid(uuid).getBlockPos()), world, false);
+    sendPlayerMessage(sourceUUID, blockPosToString(world.getPlayerByUuid(targetUUID).getBlockPos()), world, false);
   }
 
   private void getLoc(CommandContext<ServerCommandSource> ctx, Boolean self) throws CommandSyntaxException {
-    UUID uuid = getUUID(ctx, self);
+    UUID sourceUUID = getUUID(ctx, true);
+    UUID targetUUID = getUUID(ctx, self);
     String locName = StringArgumentType.getString(ctx, "location name");
     ServerWorld world = ctx.getSource().getWorld();
 
-    if (!locations.containsKey(uuid)) {
-      sendPlayerMessage(uuid, playerHasNoLocations, world, false);
+    if (!locations.containsKey(targetUUID)) {
+      sendPlayerMessage(sourceUUID, playerHasNoLocations, world, false);
       return;
     }
 
-    if (!locations.get(uuid).containsKey(locName)) {
-      sendPlayerMessage(uuid, noSuchLocation, world, false);
+    if (!locations.get(targetUUID).containsKey(locName)) {
+      sendPlayerMessage(sourceUUID, noSuchLocation, world, false);
       return;
     }
 
-    if (!(publicLocations.containsKey(uuid) && publicLocations.get(uuid).contains(locName)) && !self) {
-      sendPlayerMessage(uuid, locationIsPrivate, world, false);
+    if (!(publicLocations.containsKey(targetUUID) && publicLocations.get(targetUUID).contains(locName)) && !self) {
+      sendPlayerMessage(sourceUUID, locationIsPrivate, world, false);
       return;
     }
 
-    BlockPos pos = locations.get(uuid).get(locName);
-    sendPlayerMessage(uuid, blockPosToString(pos), world, false);
+    BlockPos pos = locations.get(targetUUID).get(locName);
+    sendPlayerMessage(sourceUUID, blockPosToString(pos), world, false);
   }
 
-  private void sendPlayerMessage(UUID uuid, String message, ServerWorld world, Boolean toolBar, Boolean hasPrefix) {
+  private void sendPlayerMessage(UUID uuid, String message, ServerWorld world, Boolean toolBar, boolean hasPrefix) {
     LiteralText prefix = new LiteralText("[LocationsMod] ");
     LiteralText literalMessage = new LiteralText(message);
     prefix.setStyle(Style.EMPTY.withColor(Formatting.AQUA));
     literalMessage.setStyle(Style.EMPTY.withColor(Formatting.WHITE));
 
     if (!hasPrefix) {
-      world.getPlayerByUuid(uuid).sendMessage(literalMessage, false);
+      world.getPlayerByUuid(uuid).sendMessage(literalMessage, toolBar);
+      return;
     }
 
-    world.getPlayerByUuid(uuid).sendMessage(prefix.append(literalMessage), false);
+    world.getPlayerByUuid(uuid).sendMessage(prefix.append(literalMessage), toolBar);
   }
 
   private void sendPlayerMessage(UUID uuid, String message, ServerWorld world, Boolean toolBar) {
