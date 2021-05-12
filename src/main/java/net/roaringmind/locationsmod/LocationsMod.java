@@ -20,7 +20,9 @@ import org.apache.logging.log4j.Logger;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
+import net.minecraft.command.argument.ArgumentTypes;
 import net.minecraft.command.argument.BlockPosArgumentType;
+import net.minecraft.command.argument.CoordinateArgument;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.world.ServerWorld;
@@ -71,46 +73,146 @@ public class LocationsMod implements ModInitializer {
 
   private void registerCommands() {
     CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
-      dispatcher.register(literal("getloc").then(argument("player", EntityArgumentType.player())
-          .then(argument("location name", StringArgumentType.string()).executes(ctx -> {
-            getLoc(ctx, false);
-            return 0;
-          }))).then(argument("location name", StringArgumentType.string()).executes(ctx -> {
-            getLoc(ctx, true);
-            return 0;
-          })));
-
-      dispatcher.register(literal("getPloc").then(argument("player", EntityArgumentType.player()).executes(ctx -> {
-        getLocPlayer(ctx);
-        return 0;
-      })));
-
-      dispatcher.register(literal("setloc").then(argument("location name", StringArgumentType.string())
-          .then(argument("private", BoolArgumentType.bool()).executes(ctx -> {
-            setLocPrivate(ctx);
-            return 0;
-          })))
+      dispatcher.register(literal("loc")
+        .then(literal("get")
+          .then(argument("player", EntityArgumentType.player())
+            .then(argument("locname", StringArgumentType.string())
+              .executes(ctx -> {
+                // TODO: /loc get <player> <locname>
+                return 0;
+              })
+            )
+          )
+          .then(argument("locname", StringArgumentType.string())
+            .executes(ctx -> {
+              // TODO: /loc get <locname>
+              return 0;
+            })
+          )
+        )
+        .then(literal("player")
+          .then(literal("get")
+            .then(argument("player", EntityArgumentType.player())
+              .executes(ctx -> {
+                // TODO: /loc player get <player>
+                return 0;
+              })
+            )
+            .executes(ctx -> {
+              // TODO: /loc player get
+              return 0;
+            })
+          )
+          .then(literal("publicity")
+            .then(argument("public", BoolArgumentType.bool())
+              .executes(ctx -> {
+                // TODO: /loc player publicity <public>
+                return 0;
+              })
+            )
+            .executes(ctx -> {
+              // TODO: /loc player publicity
+              return 0;
+            })
+          )
+        )
+        .then(literal("set")
           .then(argument("coords", BlockPosArgumentType.blockPos())
-              .then(argument("location name", StringArgumentType.string())
-                  .then(argument("private", BoolArgumentType.bool()).executes(ctx -> {
-                    setLoc(ctx);
-                    return 0;
-                  })))));
-
-      dispatcher.register(
-          literal("loc").then(literal("private").then(argument("private", BoolArgumentType.bool()).executes(ctx -> {
-            setPlayerPrivate(ctx);
+            .then(argument("locname", StringArgumentType.string())
+              .then(argument("public", BoolArgumentType.bool())
+                .executes(ctx -> {
+                  // TODO: /loc set <coords> <locname> <public>
+                  return 0;
+                })
+              )
+              .executes(ctx -> {
+                // TODO: /loc set <coords> <locname>
+                return 0;
+              })
+            )
+          )
+        )
+        .then(literal("help")
+          .then(literal("get")
+            .executes(ctx -> {
+              // TODO: /loc help get
+              return 0;
+            })
+          )
+          .then(literal("set")
+            .executes(ctx -> {
+              // TODO: /loc help get
+              return 0;
+            })
+          )
+          .then(literal("list")
+            .executes(ctx -> {
+              // TODO: /loc help get
+              return 0;
+            })
+          )
+          .then(literal("player")
+            .executes(ctx -> {
+              // TODO: /loc help get
+              return 0;
+            })
+          )
+          .then(literal("manage")
+            .executes(ctx -> {
+              // TODO: /loc help get
+              return 0;
+            })
+          )
+          .then(literal("help")
+            .executes(ctx -> {
+              // TODO: /loc help get
+              return 0;
+            })
+          )
+          .executes(ctx -> {
+            // TODO: /loc help
             return 0;
-          }))).then(literal("list").then(argument("player", EntityArgumentType.player()).executes(ctx -> {
-            locList(ctx, false);
+          })
+        )
+        .then(literal("list")
+          .then(argument("player", EntityArgumentType.player())
+            .executes(ctx -> {
+              // TODO: /loc list <player>
+              return 0;
+            })
+          )
+          .executes(ctx -> {
+            // TODO: /loc list
             return 0;
-          })).executes(ctx -> {
-            locList(ctx, true);
-            return 0;
-          })).then(literal("help").executes(ctx -> {
-            locHelp(ctx);
-            return 0;
-          })));
+          })
+        )
+        .then(literal("manage")
+          .then(literal("publicity")
+            .then(argument("locname", StringArgumentType.string())
+              .then(argument("public", BoolArgumentType.bool())
+                .executes(ctx -> {
+                  // TODO: /loc manage publicity <locname> <public>
+                  return 0;
+                })
+              )
+              .executes(ctx -> {
+                // TODO: /loc manage publicity <locname>
+                return 0;
+              })
+            )
+          )
+          .then(literal("rename")
+            .then(argument("locname", StringArgumentType.string())
+              .then(argument("newname", StringArgumentType.string())
+                .executes(ctx -> {
+                  // TODO: /loc manage rename <locname> <newname>
+                  return 0;
+                })
+              )
+            )
+          )
+        )
+      );
     });
   }
 
@@ -204,7 +306,7 @@ public class LocationsMod implements ModInitializer {
       sendPlayerMessage(sourceUUID, playerHasNoPublicLocations, world, false);
       return;
     }
-      
+
     List<MutableText> listMessage = new ArrayList<>();
     listMessage.add(new LiteralText("Public Locations saved by " + world.getPlayerByUuid(targetUUID).getName().asString() + ":").setStyle(Style.EMPTY.withColor(Formatting.AQUA)));
 
