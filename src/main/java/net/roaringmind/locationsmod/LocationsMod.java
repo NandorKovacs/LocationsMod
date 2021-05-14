@@ -5,14 +5,14 @@ import static net.minecraft.server.command.CommandManager.literal;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
-import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -22,17 +22,14 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
 import net.minecraft.command.argument.BlockPosArgumentType;
 import net.minecraft.command.argument.EntityArgumentType;
-import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.ClickEvent;
-import net.minecraft.text.ClickEvent.Action;
-import net.minecraft.text.HoverEvent;
 import net.minecraft.text.LiteralText;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
-import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
 import net.minecraft.world.dimension.DimensionType;
 
 public class LocationsMod implements ModInitializer {
@@ -43,25 +40,7 @@ public class LocationsMod implements ModInitializer {
   public static final String MOD_NAME = "LocationsMod";
 
   private Map<UUID, Map<String, Position>> locations = new HashMap<>();
-  private List<UUID> privatePlayers = new ArrayList<>();
-  private Map<UUID, List<String>> publicLocations = new HashMap<>();
-
-  private String playerHasNoLocations = "playerHasNoLocations";
-  private String noSuchLocation = "noSuchLocation";
-  private String locationIsPrivate = "locationIsPrivate";
-  private String successfullStore = "successfullStore";
-  private String playerHasNoPublicLocations = "playerHasNoPublicLocations";
-  private String playerLocIsPrivate = "playerLocIsPrivate";
-  private String playerAlreadyPrivate = "playerAlreadyPrivate";
-  private String playerAlreadyPublic = "playerAlreadyPublic";
-  private String playerSetPublic = "playerSetPublic";
-  private String playerSetPrivate = "playerSetPrivate";
-  private String helpMessage = "helpMessage";
-  private String youHaveNoLocations = "youHaveNoLocations";
-  private String locAlreadyPrivate = "locAlreadyPrivate";
-  private String locAlreadyPublic = "locAlreadyPublic";
-  private String locSetPublic = "locSetPublic";
-  private String locSetPrivate = "locSetPrivate";
+  private Set<UUID> privatePlayers = new HashSet<>();
 
   @Override
   public void onInitialize() {
@@ -69,237 +48,320 @@ public class LocationsMod implements ModInitializer {
     registerCommands();
   }
 
+  //@formatter:off
   private void registerCommands() {
     CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
-      dispatcher.register(literal("getloc").then(argument("player", EntityArgumentType.player())
-          .then(argument("location name", StringArgumentType.string()).executes(ctx -> {
-            getLoc(ctx, false);
-            return 0;
-          }))).then(argument("location name", StringArgumentType.string()).executes(ctx -> {
-            getLoc(ctx, true);
-            return 0;
-          })));
-
-      dispatcher.register(literal("getPloc").then(argument("player", EntityArgumentType.player()).executes(ctx -> {
-        getLocPlayer(ctx);
-        return 0;
-      })));
-
-      dispatcher.register(literal("setloc").then(argument("location name", StringArgumentType.string())
-          .then(argument("private", BoolArgumentType.bool()).executes(ctx -> {
-            setLocPrivate(ctx);
-            return 0;
-          })))
+      dispatcher.register(literal("loc")
+        .then(literal("get")
+          .then(argument("player", EntityArgumentType.player())
+            .then(argument("locname", StringArgumentType.string())
+              .executes(ctx -> {
+                MutableText message = get(ctx.getSource().getPlayer().getUuid(), EntityArgumentType.getPlayer(ctx, "player").getUuid(), StringArgumentType.getString(ctx, "locname"));
+                sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+                return 0;
+              })
+            )
+          )
+          .then(argument("locname", StringArgumentType.string())
+            .executes(ctx -> {
+              MutableText message = get(ctx.getSource().getPlayer().getUuid(), ctx.getSource().getPlayer().getUuid(), StringArgumentType.getString(ctx, "locname"));
+              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+              return 0;
+            })
+          )
+        )
+        .then(literal("player")
+          .then(literal("get")
+            .then(argument("player", EntityArgumentType.player())
+              .executes(ctx -> {
+                MutableText message = playerGet(ctx.getSource().getPlayer().getUuid(), EntityArgumentType.getPlayer(ctx, "player").getUuid(), ctx.getSource().getWorld());
+                sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+                return 0;
+              })
+            )
+            .executes(ctx -> {
+              MutableText message = playerGet(ctx.getSource().getPlayer().getUuid(), ctx.getSource().getPlayer().getUuid(), ctx.getSource().getWorld());
+              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+              return 0;
+            })
+          )
+          .then(literal("publicity")
+            .then(argument("public", BoolArgumentType.bool())
+              .executes(ctx -> {
+                MutableText message = playerPublicity(ctx.getSource().getPlayer().getUuid(), BoolArgumentType.getBool(ctx, "public"));
+                sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+                return 0;
+              })
+            )
+            .executes(ctx -> {
+              MutableText message = playerPublicity(ctx.getSource().getPlayer().getUuid());
+              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+              return 0;
+            })
+          )
+        )
+        .then(literal("set")
           .then(argument("coords", BlockPosArgumentType.blockPos())
-              .then(argument("location name", StringArgumentType.string())
-                  .then(argument("private", BoolArgumentType.bool()).executes(ctx -> {
-                    setLoc(ctx);
-                    return 0;
-                  })))));
-
-      dispatcher.register(
-          literal("loc").then(literal("private").then(argument("private", BoolArgumentType.bool()).executes(ctx -> {
-            setPlayerPrivate(ctx);
+            .then(argument("locname", StringArgumentType.string())
+              .then(argument("public", BoolArgumentType.bool())
+                .executes(ctx -> {
+                  MutableText message = set(ctx.getSource().getPlayer().getUuid(), BlockPosArgumentType.getBlockPos(ctx, "coords"), StringArgumentType.getString(ctx, "locname"), BoolArgumentType.getBool(ctx, "public"), getDimension(ctx.getSource().getWorld().getDimension(), ctx.getSource().getMinecraftServer()));
+                  sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+                  return 0;
+                })
+              )
+              .executes(ctx -> {
+                MutableText message = set(ctx.getSource().getPlayer().getUuid(), BlockPosArgumentType.getBlockPos(ctx, "coords"), StringArgumentType.getString(ctx, "locname"), true, getDimension(ctx.getSource().getWorld().getDimension(), ctx.getSource().getMinecraftServer()));
+                sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+                return 0;
+              })
+            )
+          )
+        )
+        .then(literal("help")
+          .then(literal("get")
+            .executes(ctx -> {
+              MutableText message = help(HelpEnum.GET);
+              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+              return 0;
+            })
+          )
+          .then(literal("set")
+            .executes(ctx -> {
+              MutableText message = help(HelpEnum.SET);
+              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+              return 0;
+            })
+          )
+          .then(literal("list")
+            .executes(ctx -> {
+              MutableText message = help(HelpEnum.LIST);
+              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+              return 0;
+            })
+          )
+          .then(literal("player")
+            .executes(ctx -> {
+              MutableText message = help(HelpEnum.PLAYER);
+              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+              return 0;
+            })
+          )
+          .then(literal("manage")
+            .executes(ctx -> {
+              MutableText message = help(HelpEnum.MANAGE);
+              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+              return 0;
+            })
+          )
+          .then(literal("help")
+            .executes(ctx -> {
+              MutableText message = help(HelpEnum.HELP);
+              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+              return 0;
+            })
+          )
+          .executes(ctx -> {
+              MutableText message = help(HelpEnum.ALL);
+              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
             return 0;
-          }))).then(literal("list").then(argument("player", EntityArgumentType.player()).executes(ctx -> {
-            locList(ctx, false);
+          })
+        )
+        .then(literal("list")
+          .executes(ctx -> {
+            MutableText message = list(ctx.getSource().getPlayer().getUuid(), ctx.getSource().getPlayer().getUuid(), ctx.getSource().getName());
+            sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
             return 0;
-          })).executes(ctx -> {
-            locList(ctx, true);
-            return 0;
-          })).then(literal("help").executes(ctx -> {
-            locHelp(ctx);
-            return 0;
-          })));
+          })
+          .then(argument("player", EntityArgumentType.player())
+            .executes(ctx -> {
+              MutableText message = list(ctx.getSource().getPlayer().getUuid(), EntityArgumentType.getPlayer(ctx, "player").getUuid(), EntityArgumentType.getPlayer(ctx, "player").getName().asString());
+              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+              return 0;
+            })
+          )
+        )
+        .then(literal("manage")
+          .then(literal("publicity")
+            .then(argument("locname", StringArgumentType.string())
+              .then(argument("public", BoolArgumentType.bool())
+                .executes(ctx -> {
+                  MutableText message = managePublicity(ctx.getSource().getPlayer().getUuid(), StringArgumentType.getString(ctx, "locname"), BoolArgumentType.getBool(ctx, "public"));
+                  sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+                  return 0;
+                })
+              )
+              .executes(ctx -> {
+                MutableText message = managePublicity(ctx.getSource().getPlayer().getUuid(), StringArgumentType.getString(ctx, "locname"));
+                sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+                return 0;
+              })
+            )
+          )
+          .then(literal("rename")
+            .then(argument("locname", StringArgumentType.string())
+              .then(argument("newname", StringArgumentType.string())
+                .executes(ctx -> {
+                  MutableText message = manageRename(ctx.getSource().getPlayer().getUuid(), StringArgumentType.getString(ctx, "locname"), StringArgumentType.getString(ctx, "newname"));
+                  sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+                  return 0;
+                })
+              )
+            )
+          )
+        )
+      );
     });
   }
+  //@formatter:on
 
-  private void setLocPrivate(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
-    ServerWorld world = ctx.getSource().getWorld();
-    UUID uuid = getUUID(ctx, true);
-    String locName = StringArgumentType.getString(ctx, "location name");
-    boolean setPrivate = BoolArgumentType.getBool(ctx, "private");
+  String couldntFindLoc = "Couldn't find the specified location, either it doesnt exist, or it is private";
 
-    if (!locations.containsKey(uuid)) {
-      sendPlayerMessage(uuid, youHaveNoLocations, world, false);
-      return;
+  private MutableText get(UUID source, UUID target, String locname) {
+    if (!locations.containsKey(target) || !locations.get(target).containsKey(locname)
+        || (!locations.get(target).get(locname).isPublic && source != target)) {
+      return createDefaultMutable(couldntFindLoc);
     }
 
-    if (!locations.get(uuid).containsKey(locName)) {
-      sendPlayerMessage(uuid, noSuchLocation, world, false);
-      return;
-    }
-
-    if (setPrivate) {
-      if (!publicLocations.containsKey(uuid) || !publicLocations.get(uuid).contains(locName)) {
-        sendPlayerMessage(uuid, locAlreadyPrivate, world, false);
-        return;
-      }
-      publicLocations.get(uuid).remove(locName);
-      sendPlayerMessage(uuid, locSetPrivate, world, false);
-      return;
-    }
-
-    if (publicLocations.containsKey(uuid) && publicLocations.get(uuid).contains(locName)) {
-      sendPlayerMessage(uuid, locAlreadyPublic, world, false);
-      return;
-    }
-
-    if (!publicLocations.containsKey(uuid)) {
-      publicLocations.put(uuid, new ArrayList<>());
-    }
-    publicLocations.get(uuid).add(locName);
-    sendPlayerMessage(uuid, locSetPublic, world, false);
+    return locations.get(target).get(locname).toMutableText();
   }
 
-  private void locHelp(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
-    UUID uuid = getUUID(ctx, true);
-    sendPlayerMessage(uuid, helpMessage, ctx.getSource().getWorld(), false);
+  String playerPrivate = "The specified player has probably set his coordinates private";
+
+  private MutableText playerGet(UUID source, UUID target, World world) {
+    if (privatePlayers.contains(target) && source != target) {
+      return createDefaultMutable(playerPrivate);
+    }
+
+    return createDefaultMutable(blockPosToString(world.getPlayerByUuid(target).getBlockPos()));
   }
 
-  private void setPlayerPrivate(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
-    ServerWorld world = ctx.getSource().getWorld();
-    UUID uuid = getUUID(ctx, true);
-    boolean isPrivate = true;
-    boolean setPrivate = BoolArgumentType.getBool(ctx, "private");
+  String playerPrivacyDidntChange = "Your coordinates are already %s, no changes applied";
+  String playerPrivacyConfirmChange = "Your coordinates are now %s";
 
-    if (!privatePlayers.contains(uuid)) {
-      isPrivate = false;
-    }
-
-    if (setPrivate) {
-      if (isPrivate) {
-        sendPlayerMessage(uuid, playerAlreadyPrivate, world, false);
-        return;
-      }
-      privatePlayers.add(uuid);
-      sendPlayerMessage(uuid, playerSetPrivate, world, false);
-      return;
-    }
-
-    if (!isPrivate) {
-      sendPlayerMessage(uuid, playerAlreadyPublic, world, false);
-      return;
-    }
-    privatePlayers.remove(uuid);
-    sendPlayerMessage(uuid, playerSetPublic, world, false);
-  }
-
-  private void locList(CommandContext<ServerCommandSource> ctx, boolean self) throws CommandSyntaxException {
-    UUID sourceUUID = getUUID(ctx, true);
-    UUID targetUUID = getUUID(ctx, self);
-    ServerWorld world = ctx.getSource().getWorld();
-
-    if (!locations.containsKey(targetUUID)) {
-      sendPlayerMessage(sourceUUID, playerHasNoLocations, world, false);
-      return;
-    }
-
-    if (!publicLocations.containsKey(targetUUID) || publicLocations.get(targetUUID).isEmpty()) {
-      if (self) {
-        sendPlayerMessage(sourceUUID, youHaveNoLocations, world, false);
-        return;
-      }
-
-      sendPlayerMessage(sourceUUID, playerHasNoPublicLocations, world, false);
-      return;
-    }
-      
-    List<MutableText> listMessage = new ArrayList<>();
-    listMessage.add(new LiteralText("Public Locations saved by " + world.getPlayerByUuid(targetUUID).getName().asString() + ":").setStyle(Style.EMPTY.withColor(Formatting.AQUA)));
-
-    for (String l : publicLocations.get(targetUUID)) {
-      List<MutableText> listEntry = new ArrayList<>();
-      listEntry.add(new LiteralText(" -").setStyle(Style.EMPTY.withColor(Formatting.WHITE)));
-
-      ClickEvent clickEvent = new ClickEvent(Action.COPY_TO_CLIPBOARD, locations.get(targetUUID).get(l).getCoords());
-      listEntry.add(new LiteralText(l).setStyle(Style.EMPTY.withColor(Formatting.GREEN).withClickEvent(clickEvent).withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.of("click to copy")))));
-      listEntry.add(locations.get(targetUUID).get(l).toMutableText());
-
-      listMessage.add(joinMutable(listEntry, " "));
-    }
-
-    MutableText resMessage = joinMutable(listMessage, "\n");
-    sendPlayerMessage(sourceUUID, resMessage, world, false, false);
-  }
-
-  private void setLoc(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
-    UUID uuid = getUUID(ctx, true);
-    String name = StringArgumentType.getString(ctx, "location name");
-    BlockPos pos = BlockPosArgumentType.getBlockPos(ctx, "coords");
-    boolean isPrivate = BoolArgumentType.getBool(ctx, "private");
-
-    locations.computeIfAbsent(uuid, l -> new HashMap<>());
-
-    Dimension dim;
-
-    DimensionType end = ctx.getSource().getMinecraftServer().getRegistryManager().getDimensionTypes()
-        .get(DimensionType.THE_END_ID);
-    DimensionType overworld = ctx.getSource().getMinecraftServer().getRegistryManager().getDimensionTypes()
-        .get(DimensionType.OVERWORLD_ID);
-    DimensionType nether = ctx.getSource().getMinecraftServer().getRegistryManager().getDimensionTypes()
-        .get(DimensionType.THE_NETHER_ID);
-    DimensionType currentDim = ctx.getSource().getWorld().getDimension();
-
-    if (currentDim.equals(end)) {
-      dim = Dimension.END;
-    } else if (currentDim.equals(overworld)) {
-      dim = Dimension.OVERWOLRD;
-    } else if (currentDim.equals(nether)) {
-      dim = Dimension.NETHER;
+  private MutableText playerPublicity(UUID source, boolean isPublic) {
+    String privateStr;
+    if (isPublic) {
+      privateStr = "public";
     } else {
-      dim = Dimension.NODIM;
+      privateStr = "private";
     }
 
-    locations.get(uuid).put(name, new Position(pos, dim));
-
-    if (!isPrivate) {
-      publicLocations.computeIfAbsent(uuid, loc -> new ArrayList<>());
-
-      publicLocations.get(uuid).add(name);
+    if (privatePlayers.contains(source) != isPublic) {
+      return createDefaultMutable(String.format(playerPrivacyDidntChange, privateStr));
     }
 
-    sendPlayerMessage(uuid, successfullStore, ctx.getSource().getWorld(), false);
+    if (privatePlayers.contains(source)) {
+      privatePlayers.remove(source);
+    } else {
+      privatePlayers.add(source);
+    }
+
+    return createDefaultMutable(String.format(playerPrivacyConfirmChange, privateStr));
   }
 
-  private void getLocPlayer(CommandContext<ServerCommandSource> ctx) throws CommandSyntaxException {
-    ServerWorld world = ctx.getSource().getWorld();
-    UUID sourceUUID = getUUID(ctx, true);
-    UUID targetUUID = getUUID(ctx, false);
+  String playerPrivacyGet = "Your coordinates are currently %s";
 
-    if (privatePlayers.contains(targetUUID) && targetUUID != sourceUUID) {
-      sendPlayerMessage(sourceUUID, playerLocIsPrivate, world, false);
-      return;
+  private MutableText playerPublicity(UUID source) {
+    if (privatePlayers.contains(source)) {
+      return createDefaultMutable(String.format(playerPrivacyGet, "private"));
     }
-
-    sendPlayerMessage(sourceUUID, blockPosToString(world.getPlayerByUuid(targetUUID).getBlockPos()), world, false);
+    return createDefaultMutable(String.format(playerPrivacyGet, "public"));
   }
 
-  private void getLoc(CommandContext<ServerCommandSource> ctx, boolean self) throws CommandSyntaxException {
-    UUID sourceUUID = getUUID(ctx, true);
-    UUID targetUUID = getUUID(ctx, self);
-    String locName = StringArgumentType.getString(ctx, "location name");
-    ServerWorld world = ctx.getSource().getWorld();
+  String locAlreadyExists = "A location with that name is already registered under your name. Try a different name, or rename the existing one with /loc manage rename";
+  String locCreateConfirm = "Created location \"%s\" with the coordinates %s";
+  private MutableText set(UUID source, BlockPos coords, String locname, boolean isPublic, DimensionEnum dim) {
+    locations.computeIfAbsent(source, v -> {
+      return new HashMap<>();
+    });
 
-    if (!locations.containsKey(targetUUID)) {
-      sendPlayerMessage(sourceUUID, playerHasNoLocations, world, false);
-      return;
+    if (locations.get(source).containsKey(locname)) {
+      return createDefaultMutable(locAlreadyExists);
     }
 
-    if (!locations.get(targetUUID).containsKey(locName)) {
-      sendPlayerMessage(sourceUUID, noSuchLocation, world, false);
-      return;
+    locations.get(source).put(locname, new Position(coords, dim, isPublic));
+
+    return createDefaultMutable(String.format(locCreateConfirm, locname, blockPosToString(coords)));
+  }
+
+  String couldntFindPublicLocations = "Couldn't find any public locations registered by the specified player";
+  String listHead = "Locations saved by %s that are accessible to you: ";
+  private MutableText list(UUID source, UUID target, String targetName) {
+    if (!locations.containsKey(target)) {
+      return createDefaultMutable(couldntFindPublicLocations);
     }
 
-    if (!(publicLocations.containsKey(targetUUID) && publicLocations.get(targetUUID).contains(locName)) && !self) {
-      sendPlayerMessage(sourceUUID, locationIsPrivate, world, false);
-      return;
+    List<MutableText> res = new ArrayList<>();
+    res.add(createDefaultMutable(String.format(listHead, targetName)).setStyle(Style.EMPTY.withColor(Formatting.AQUA)));
+    for (Map.Entry<String,Position> entry : locations.get(target).entrySet()) {
+      if (target != source && !entry.getValue().isPublic) {
+        continue;
+      }
+      res.add(entry.getValue().toMutableText());
     }
 
-    MutableText message = locations.get(targetUUID).get(locName).toMutableText();
-    message.setStyle(Style.EMPTY.withColor(Formatting.WHITE));
+    if (res.size() <= 1) {
+      return createDefaultMutable(couldntFindPublicLocations);
+    }
 
-    sendPlayerMessage(sourceUUID, message, world, false);
+    return joinMutable(res, "\n");
+  }
+
+  String couldntFindLocSelf = "Couldn't find specified location";
+  String locPrivacyDidntChange = "\"%s\" is already %s, no changes applied";
+  String locPrivacyConfirmChange = "\"%s\" is now %s";
+  private MutableText managePublicity(UUID source, String locname, boolean isPublic) {
+    if (!locations.containsKey(source) || !locations.get(source).containsKey(locname)) {
+      return createDefaultMutable(couldntFindLocSelf);
+    }
+
+    String privateStr;
+    if (isPublic) {
+      privateStr = "public";
+    } else {
+      privateStr = "private";
+    }
+
+    Position pos = locations.get(source).get(locname);
+    if (pos.isPublic == isPublic) {
+      return createDefaultMutable(String.format(locPrivacyDidntChange, locname, privateStr));
+    }
+
+    locations.get(source).put(locname, new Position(new BlockPos(pos.x, pos.y, pos.z), pos.dim, isPublic));
+
+    return createDefaultMutable(String.format(locPrivacyConfirmChange, locname, privateStr));
+  }
+
+  String locPrivacyGet = "\"%s\" is %s";
+  private MutableText managePublicity(UUID source, String locname) {
+    if (!locations.containsKey(source) || !locations.get(source).containsKey(locname)) {
+      return createDefaultMutable(couldntFindLocSelf);
+    }
+
+    String privateStr;
+    if (locations.get(source).get(locname).isPublic) {
+      privateStr = "public";
+    } else {
+      privateStr = "private";
+    }
+
+    return createDefaultMutable(String.format(locPrivacyGet, locname, privateStr));
+  }
+
+  String locRenameConfirm = "Successfully renamed \"%s\" to \"%s\"";
+  private MutableText manageRename(UUID source, String locname, String newname) {
+    if (!locations.containsKey(source) || !locations.get(source).containsKey(locname)) {
+      return createDefaultMutable(couldntFindLocSelf);
+    }
+
+    locations.get(source).put(newname, locations.get(source).get(locname));
+    locations.get(source).remove(locname);
+    return createDefaultMutable(String.format(locRenameConfirm, locname, newname));
+  }
+
+  private MutableText help(HelpEnum type) {
+    return createDefaultMutable("Look in discord, i am too lazy");
   }
 
   private void sendPlayerMessage(UUID uuid, MutableText message, ServerWorld world, boolean toolBar,
@@ -315,28 +377,6 @@ public class LocationsMod implements ModInitializer {
     world.getPlayerByUuid(uuid).sendMessage(prefix.append(message), toolBar);
   }
 
-  private void sendPlayerMessage(UUID uuid, String message, ServerWorld world, boolean toolBar, boolean hasPrefix) {
-    MutableText literalMessage = new LiteralText(message);
-    literalMessage.setStyle(Style.EMPTY.withColor(Formatting.WHITE));
-
-    sendPlayerMessage(uuid, literalMessage, world, toolBar, hasPrefix);
-  }
-
-  private void sendPlayerMessage(UUID uuid, String message, ServerWorld world, boolean toolBar) {
-    sendPlayerMessage(uuid, message, world, toolBar, true);
-  }
-
-  private void sendPlayerMessage(UUID uuid, MutableText message, ServerWorld world, boolean toolBar) {
-    sendPlayerMessage(uuid, message, world, toolBar, true);
-  }
-
-  private UUID getUUID(CommandContext<ServerCommandSource> ctx, boolean self) throws CommandSyntaxException {
-    if (self) {
-      return ctx.getSource().getPlayer().getUuid();
-    }
-    return EntityArgumentType.getPlayer(ctx, "player").getUuid();
-  }
-
   private MutableText joinMutable(List<MutableText> mutables, String delim) {
     MutableText delimMutable = new LiteralText(delim);
     MutableText res = new LiteralText("");
@@ -348,8 +388,31 @@ public class LocationsMod implements ModInitializer {
     return res;
   }
 
+  private MutableText createDefaultMutable(String s) {
+    return new LiteralText(s).setStyle(Style.EMPTY.withColor(Formatting.WHITE));
+  }
+
   private String blockPosToString(BlockPos pos) {
     return "" + pos.getX() + " " + pos.getY() + " " + pos.getZ();
+  }
+
+  private DimensionEnum getDimension(DimensionType dimtype, MinecraftServer mcserver) {
+    DimensionType end = mcserver.getRegistryManager().getDimensionTypes()
+        .get(DimensionType.THE_END_ID);
+    DimensionType overworld = mcserver.getRegistryManager().getDimensionTypes()
+        .get(DimensionType.OVERWORLD_ID);
+    DimensionType nether = mcserver.getRegistryManager().getDimensionTypes()
+        .get(DimensionType.THE_NETHER_ID);
+
+    if (dimtype.equals(end)) {
+      return DimensionEnum.END;
+    } else if (dimtype.equals(overworld)) {
+      return DimensionEnum.OVERWOLRD;
+    } else if (dimtype.equals(nether)) {
+      return DimensionEnum.NETHER;
+    } else {
+      return DimensionEnum.NODIM;
+    }
   }
 
   public static void log(Level level, String message) {
