@@ -241,7 +241,7 @@ public class LocationsMod implements ModInitializer {
   String couldntFindLoc = "Couldn't find the specified location, either it doesnt exist, or it is private";
 
   private MutableText get(UUID source, UUID target, String locname) {
-    Position pos = saver.getPos(target, locname);
+    Position pos = saver.getLoc(target, locname);
 
     if (pos == null || (pos.getPublic() && source != target)) {
       return createDefaultMutable(couldntFindLoc);
@@ -294,7 +294,7 @@ public class LocationsMod implements ModInitializer {
 
   private MutableText set(UUID source, BlockPos coords, String locname, boolean isPublic, DimensionEnum dim) {
 
-    if (saver.getPos(source, locname) != null) {
+    if (saver.getLoc(source, locname) != null) {
       return createDefaultMutable(locAlreadyExists);
     }
 
@@ -328,7 +328,7 @@ public class LocationsMod implements ModInitializer {
   String locPrivacyConfirmChange = "\"%s\" is now %s";
 
   private MutableText managePublicity(UUID source, String locname, boolean isPublic) {
-    Position pos = saver.getPos(source, locname);
+    Position pos = saver.getLoc(source, locname);
     if (pos == null) {
       return createDefaultMutable(couldntFindLocSelf);
     }
@@ -344,14 +344,15 @@ public class LocationsMod implements ModInitializer {
       return createDefaultMutable(String.format(locPrivacyDidntChange, locname, privateStr));
     }
 
-    saver.setLoc(source, pos, locname);
+    pos.setPublic(isPublic);
+    saver.setLoc(source, locname, pos);
     return createDefaultMutable(String.format(locPrivacyConfirmChange, locname, privateStr));
   }
 
   String locPrivacyGet = "\"%s\" is %s";
 
   private MutableText managePublicity(UUID source, String locname) {
-    Position pos = saver.getPos(source, locname);
+    Position pos = saver.getLoc(source, locname);
 
     if (pos == null) {
       return createDefaultMutable(couldntFindLocSelf);
@@ -370,12 +371,12 @@ public class LocationsMod implements ModInitializer {
   String locRenameConfirm = "Successfully renamed \"%s\" to \"%s\"";
 
   private MutableText manageRename(UUID source, String locname, String newname) {
-    Position pos = saver.getPos(source, locname);
+    Position pos = saver.getLoc(source, locname);
     if (pos == null) {
       return createDefaultMutable(couldntFindLocSelf);
     }
 
-    saver.setLoc(source, pos, newname);
+    saver.setLoc(source, newname, pos);
     saver.removeLoc(source, locname);
     return createDefaultMutable(String.format(locRenameConfirm, locname, newname));
   }

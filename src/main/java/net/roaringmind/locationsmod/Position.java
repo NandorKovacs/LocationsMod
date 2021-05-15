@@ -6,15 +6,18 @@ import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.PersistentState;
 
-public class Position extends PersistentState {
+public class Position {
   private int x, y, z;
   private DimensionEnum dim;
   private boolean isPublic;
 
-  public Position(String key) {
-    super(key);
+  public Position(BlockPos pos, DimensionEnum dim, boolean isPublic) {
+    x = pos.getX();
+    y = pos.getY();
+    z = pos.getZ();
+    this.dim = dim;
+    this.isPublic = isPublic;
   }
 
   public MutableText toMutableText() {
@@ -26,34 +29,24 @@ public class Position extends PersistentState {
     return x + " " + y + " " + z;
   }
 
-  public void setAll(BlockPos pos, DimensionEnum dim, boolean isPublic) {
-    x = pos.getX();
-    y = pos.getY();
-    z = pos.getZ();
-    this.dim = dim;
-    this.isPublic = isPublic;
-    markDirty();
-  }
-
   public void setPublic(boolean isPublic) {
     this.isPublic = isPublic;
-    markDirty();
   }
 
   public boolean getPublic() {
     return isPublic;
   }
 
-  @Override
-  public void fromTag(CompoundTag tag) {
-    x = tag.getInt("x");
-    y = tag.getInt("y");
-    z = tag.getInt("z");
-    isPublic = tag.getBoolean("public");
-    dim = DimensionEnum.fromInt(tag.getInt("dim"));
+  public static Position fromTag(CompoundTag tag) {
+    int x = tag.getInt("x");
+    int y = tag.getInt("y");
+    int z = tag.getInt("z");
+    boolean isPublic = tag.getBoolean("public");
+    DimensionEnum dim = DimensionEnum.fromInt(tag.getInt("dim"));
+
+    return new Position(new BlockPos(x, y, z), dim, isPublic);
   }
 
-  @Override
   public CompoundTag toTag(CompoundTag tag) {
     tag.putInt("dim", dim.toInt());
     tag.putInt("x", x);

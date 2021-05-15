@@ -43,7 +43,7 @@ public class Saver extends PersistentState {
     markDirty();
   }
 
-  public Position getPos(UUID uuid, String locname) {
+  public Position getLoc(UUID uuid, String locname) {
     if (!locations.containsKey(uuid) || !locations.get(uuid).containsKey(locname)) {
       return null;
     }
@@ -51,11 +51,10 @@ public class Saver extends PersistentState {
   }
 
   public void setLoc(UUID uuid, String locname, BlockPos pos, DimensionEnum dim, boolean isPublic) {
-    // TODO: write body
-    markDirty();
+    setLoc(uuid, locname, new Position(pos, dim, isPublic));
   }
 
-  public void setLoc(UUID uuid, Position pos, String locname) {
+  public void setLoc(UUID uuid, String locname, Position pos) {
     locations.computeIfAbsent(uuid, value -> {
       return new HashMap<>();
     });
@@ -97,8 +96,7 @@ public class Saver extends PersistentState {
 
       CompoundTag locNames = locationPlayers.getCompound(stringUUID);
       locNames.getKeys().forEach(locname -> {
-        Position pos = new Position(locname);
-        pos.fromTag(locNames.getCompound(locname));
+        Position pos = Position.fromTag(locNames.getCompound(locname));
         locations.get(UUID.fromString(stringUUID)).put(locname, pos);
       });
     });
@@ -118,14 +116,13 @@ public class Saver extends PersistentState {
     CompoundTag locationPlayers = new CompoundTag();
     locations.keySet().forEach(uuid -> {
       CompoundTag locNames = new CompoundTag();
-      locations.get(uuid).keySet().forEach(locname -> {
-        Position pos = new Position(locname);
-        locNames.put(locname, pos.toTag(new CompoundTag()));
+      locations.get(uuid).entrySet().forEach(loc -> {
+        locNames.put(loc.getKey(), loc.getValue().toTag(new CompoundTag()));
       });
       locationPlayers.put(uuid.toString(), locNames);
     });
 
-    tag.put("locationPlayers", tag);
+    tag.put("locationPlayers", locationPlayers);
     tag.put("privatePlayers", privates);
     tag.putString("kecs2", kecs);
     return tag;
