@@ -377,7 +377,7 @@ public class LocationsMod implements ModInitializer {
   }
 
   private MutableText help(HelpEnum type) {
-    return createDefaultMutable("Look in discord, i am too lazy");
+    return createDefaultMutable("Look on CurseForge, i am too lazy (will be done in a few days)");
   }
 
   private void sendPlayerMessage(UUID uuid, MutableText message, ServerWorld world, boolean toolBar,
