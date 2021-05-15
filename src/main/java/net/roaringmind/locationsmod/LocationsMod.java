@@ -4,11 +4,8 @@ import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 import com.mojang.brigadier.arguments.BoolArgumentType;
@@ -20,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.command.argument.BlockPosArgumentType;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.MinecraftServer;
@@ -35,22 +33,47 @@ import net.minecraft.world.dimension.DimensionType;
 public class LocationsMod implements ModInitializer {
 
   private static final Logger LOGGER = LogManager.getLogger();
+  // public String toBeSaved = "wohooo";
+  private Saver saver;
 
   public static final String MOD_ID = "locationsmod";
   public static final String MOD_NAME = "LocationsMod";
 
-  private Map<UUID, Map<String, Position>> locations = new HashMap<>();
-  private Set<UUID> privatePlayers = new HashSet<>();
+  // private Map<UUID, Map<String, Position>> locations = new HashMap<>();
+  // private Set<UUID> privatePlayers = new HashSet<>();
 
   @Override
   public void onInitialize() {
     log(Level.INFO, "Initializing");
     registerCommands();
+
+    ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+      saver = server.getWorld(World.OVERWORLD).getPersistentStateManager().getOrCreate(() -> new Saver(MOD_ID), MOD_ID);
+
+    });
   }
 
   //@formatter:off
   private void registerCommands() {
     CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
+      dispatcher.register(literal("teststring")
+        .then(literal("get")
+          .executes(ctx -> {
+            sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), createDefaultMutable(saver.getString()), ctx.getSource().getWorld(), false, false);
+            return 0;
+          })
+        )
+        .then(literal("set")
+          .then(argument("string", StringArgumentType.string())
+            .executes(ctx -> {
+              saver.setString(StringArgumentType.getString(ctx, "string"));
+              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), createDefaultMutable("done"), ctx.getSource().getWorld(), false, false);
+              return 0;
+            })
+          )
+        )
+      );
+
       dispatcher.register(literal("loc")
         .then(literal("get")
           .then(argument("player", EntityArgumentType.player())
@@ -218,18 +241,19 @@ public class LocationsMod implements ModInitializer {
   String couldntFindLoc = "Couldn't find the specified location, either it doesnt exist, or it is private";
 
   private MutableText get(UUID source, UUID target, String locname) {
-    if (!locations.containsKey(target) || !locations.get(target).containsKey(locname)
-        || (!locations.get(target).get(locname).isPublic && source != target)) {
+    Position pos = saver.getPos(target, locname);
+
+    if (pos == null || (pos.getPublic() && source != target)) {
       return createDefaultMutable(couldntFindLoc);
     }
 
-    return locations.get(target).get(locname).toMutableText();
+    return pos.toMutableText();
   }
 
   String playerPrivate = "The specified player has probably set his coordinates private";
 
   private MutableText playerGet(UUID source, UUID target, World world) {
-    if (privatePlayers.contains(target) && source != target) {
+    if (!saver.getPlayerPublicity(target) && source != target) {
       return createDefaultMutable(playerPrivate);
     }
 
@@ -247,15 +271,11 @@ public class LocationsMod implements ModInitializer {
       privateStr = "private";
     }
 
-    if (privatePlayers.contains(source) != isPublic) {
+    if (saver.getPlayerPublicity(source) == isPublic) {
       return createDefaultMutable(String.format(playerPrivacyDidntChange, privateStr));
     }
 
-    if (privatePlayers.contains(source)) {
-      privatePlayers.remove(source);
-    } else {
-      privatePlayers.add(source);
-    }
+    saver.setPlayerPublicity(source, isPublic);
 
     return createDefaultMutable(String.format(playerPrivacyConfirmChange, privateStr));
   }
@@ -263,7 +283,7 @@ public class LocationsMod implements ModInitializer {
   String playerPrivacyGet = "Your coordinates are currently %s";
 
   private MutableText playerPublicity(UUID source) {
-    if (privatePlayers.contains(source)) {
+    if (!saver.getPlayerPublicity(source)) {
       return createDefaultMutable(String.format(playerPrivacyGet, "private"));
     }
     return createDefaultMutable(String.format(playerPrivacyGet, "public"));
@@ -271,31 +291,26 @@ public class LocationsMod implements ModInitializer {
 
   String locAlreadyExists = "A location with that name is already registered under your name. Try a different name, or rename the existing one with /loc manage rename";
   String locCreateConfirm = "Created location \"%s\" with the coordinates %s";
-  private MutableText set(UUID source, BlockPos coords, String locname, boolean isPublic, DimensionEnum dim) {
-    locations.computeIfAbsent(source, v -> {
-      return new HashMap<>();
-    });
 
-    if (locations.get(source).containsKey(locname)) {
+  private MutableText set(UUID source, BlockPos coords, String locname, boolean isPublic, DimensionEnum dim) {
+
+    if (saver.getPos(source, locname) != null) {
       return createDefaultMutable(locAlreadyExists);
     }
 
-    locations.get(source).put(locname, new Position(coords, dim, isPublic));
+    saver.setLoc(source, locname, coords, dim, isPublic);
 
     return createDefaultMutable(String.format(locCreateConfirm, locname, blockPosToString(coords)));
   }
 
   String couldntFindPublicLocations = "Couldn't find any public locations registered by the specified player";
   String listHead = "Locations saved by %s that are accessible to you: ";
-  private MutableText list(UUID source, UUID target, String targetName) {
-    if (!locations.containsKey(target)) {
-      return createDefaultMutable(couldntFindPublicLocations);
-    }
 
+  private MutableText list(UUID source, UUID target, String targetName) {
     List<MutableText> res = new ArrayList<>();
     res.add(createDefaultMutable(String.format(listHead, targetName)).setStyle(Style.EMPTY.withColor(Formatting.AQUA)));
-    for (Map.Entry<String,Position> entry : locations.get(target).entrySet()) {
-      if (target != source && !entry.getValue().isPublic) {
+    for (Map.Entry<String, Position> entry : saver.getAllLocs(target).entrySet()) {
+      if (target != source && !entry.getValue().getPublic()) {
         continue;
       }
       res.add(entry.getValue().toMutableText());
@@ -311,8 +326,10 @@ public class LocationsMod implements ModInitializer {
   String couldntFindLocSelf = "Couldn't find specified location";
   String locPrivacyDidntChange = "\"%s\" is already %s, no changes applied";
   String locPrivacyConfirmChange = "\"%s\" is now %s";
+
   private MutableText managePublicity(UUID source, String locname, boolean isPublic) {
-    if (!locations.containsKey(source) || !locations.get(source).containsKey(locname)) {
+    Position pos = saver.getPos(source, locname);
+    if (pos == null) {
       return createDefaultMutable(couldntFindLocSelf);
     }
 
@@ -323,24 +340,25 @@ public class LocationsMod implements ModInitializer {
       privateStr = "private";
     }
 
-    Position pos = locations.get(source).get(locname);
-    if (pos.isPublic == isPublic) {
+    if (pos.getPublic() == isPublic) {
       return createDefaultMutable(String.format(locPrivacyDidntChange, locname, privateStr));
     }
 
-    locations.get(source).put(locname, new Position(new BlockPos(pos.x, pos.y, pos.z), pos.dim, isPublic));
-
+    saver.setLoc(source, pos, locname);
     return createDefaultMutable(String.format(locPrivacyConfirmChange, locname, privateStr));
   }
 
   String locPrivacyGet = "\"%s\" is %s";
+
   private MutableText managePublicity(UUID source, String locname) {
-    if (!locations.containsKey(source) || !locations.get(source).containsKey(locname)) {
+    Position pos = saver.getPos(source, locname);
+
+    if (pos == null) {
       return createDefaultMutable(couldntFindLocSelf);
     }
 
     String privateStr;
-    if (locations.get(source).get(locname).isPublic) {
+    if (pos.getPublic()) {
       privateStr = "public";
     } else {
       privateStr = "private";
@@ -350,13 +368,15 @@ public class LocationsMod implements ModInitializer {
   }
 
   String locRenameConfirm = "Successfully renamed \"%s\" to \"%s\"";
+
   private MutableText manageRename(UUID source, String locname, String newname) {
-    if (!locations.containsKey(source) || !locations.get(source).containsKey(locname)) {
+    Position pos = saver.getPos(source, locname);
+    if (pos == null) {
       return createDefaultMutable(couldntFindLocSelf);
     }
 
-    locations.get(source).put(newname, locations.get(source).get(locname));
-    locations.get(source).remove(locname);
+    saver.setLoc(source, pos, newname);
+    saver.removeLoc(source, locname);
     return createDefaultMutable(String.format(locRenameConfirm, locname, newname));
   }
 
@@ -397,12 +417,9 @@ public class LocationsMod implements ModInitializer {
   }
 
   private DimensionEnum getDimension(DimensionType dimtype, MinecraftServer mcserver) {
-    DimensionType end = mcserver.getRegistryManager().getDimensionTypes()
-        .get(DimensionType.THE_END_ID);
-    DimensionType overworld = mcserver.getRegistryManager().getDimensionTypes()
-        .get(DimensionType.OVERWORLD_ID);
-    DimensionType nether = mcserver.getRegistryManager().getDimensionTypes()
-        .get(DimensionType.THE_NETHER_ID);
+    DimensionType end = mcserver.getRegistryManager().getDimensionTypes().get(DimensionType.THE_END_ID);
+    DimensionType overworld = mcserver.getRegistryManager().getDimensionTypes().get(DimensionType.OVERWORLD_ID);
+    DimensionType nether = mcserver.getRegistryManager().getDimensionTypes().get(DimensionType.THE_NETHER_ID);
 
     if (dimtype.equals(end)) {
       return DimensionEnum.END;

@@ -20,4 +20,30 @@ public enum DimensionEnum {
       return new LiteralText("<Bad Dimension>").setStyle(Style.EMPTY.withColor(Formatting.DARK_PURPLE).withFormatting(Formatting.OBFUSCATED));
     }
   }
+
+  public int toInt() {
+    switch (this) {
+      case END:
+        return 0;
+      case NETHER:
+        return 1;
+      case OVERWOLRD:
+        return 2;
+      default:
+        return 3;
+      }
+  }
+
+  public static DimensionEnum fromInt(int n) {
+    if (n == 0) {
+      return END;
+    }
+    if (n == 1) {
+      return NETHER;
+    }
+    if (n == 2) {
+      return OVERWOLRD;
+    }
+    return NODIM;
+  }
 }
