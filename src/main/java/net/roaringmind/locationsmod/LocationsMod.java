@@ -33,15 +33,10 @@ import net.minecraft.world.dimension.DimensionType;
 public class LocationsMod implements ModInitializer {
 
   private static final Logger LOGGER = LogManager.getLogger();
-  // public String toBeSaved = "wohooo";
   private Saver saver;
 
   public static final String MOD_ID = "locationsmod";
   public static final String MOD_NAME = "LocationsMod";
-
-  // private Map<UUID, Map<String, Position>> locations = new HashMap<>();
-  // private Set<UUID> privatePlayers = new HashSet<>();
-
   @Override
   public void onInitialize() {
     log(Level.INFO, "Initializing");
@@ -193,13 +188,13 @@ public class LocationsMod implements ModInitializer {
         .then(literal("list")
           .executes(ctx -> {
             MutableText message = list(ctx.getSource().getPlayer().getUuid(), ctx.getSource().getPlayer().getUuid(), ctx.getSource().getName());
-            sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+            sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, false);
             return 0;
           })
           .then(argument("player", EntityArgumentType.player())
             .executes(ctx -> {
               MutableText message = list(ctx.getSource().getPlayer().getUuid(), EntityArgumentType.getPlayer(ctx, "player").getUuid(), EntityArgumentType.getPlayer(ctx, "player").getName().asString());
-              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, false);
               return 0;
             })
           )
@@ -247,7 +242,7 @@ public class LocationsMod implements ModInitializer {
       return createDefaultMutable(couldntFindLoc);
     }
 
-    return pos.toMutableText();
+    return pos.toMutableText(locname);
   }
 
   String playerPrivate = "The specified player has probably set his coordinates private";
@@ -308,19 +303,19 @@ public class LocationsMod implements ModInitializer {
 
   private MutableText list(UUID source, UUID target, String targetName) {
     List<MutableText> res = new ArrayList<>();
-    res.add(createDefaultMutable(String.format(listHead, targetName)).setStyle(Style.EMPTY.withColor(Formatting.AQUA)));
+    res.add(createDefaultMutable(String.format(listHead, targetName)).setStyle(Style.EMPTY.withColor(Formatting.LIGHT_PURPLE)));
     for (Map.Entry<String, Position> entry : saver.getAllLocs(target).entrySet()) {
       if (target != source && !entry.getValue().getPublic()) {
         continue;
       }
-      res.add(entry.getValue().toMutableText());
+      res.add(entry.getValue().toMutableText(entry.getKey()));
     }
 
     if (res.size() <= 1) {
       return createDefaultMutable(couldntFindPublicLocations);
     }
 
-    return joinMutable(res, "\n");
+    return joinMutable(res, "\n      ");
   }
 
   String couldntFindLocSelf = "Couldn't find specified location";
@@ -388,7 +383,7 @@ public class LocationsMod implements ModInitializer {
   private void sendPlayerMessage(UUID uuid, MutableText message, ServerWorld world, boolean toolBar,
       boolean hasPrefix) {
     LiteralText prefix = new LiteralText("[LocationsMod] ");
-    prefix.setStyle(Style.EMPTY.withColor(Formatting.AQUA));
+    prefix.setStyle(Style.EMPTY.withColor(Formatting.LIGHT_PURPLE));
 
     if (!hasPrefix) {
       world.getPlayerByUuid(uuid).sendMessage(message, toolBar);
@@ -398,11 +393,18 @@ public class LocationsMod implements ModInitializer {
     world.getPlayerByUuid(uuid).sendMessage(prefix.append(message), toolBar);
   }
 
-  private MutableText joinMutable(List<MutableText> mutables, String delim) {
+  public static MutableText joinMutable(List<MutableText> mutables, String delim) {
     MutableText delimMutable = new LiteralText(delim);
     MutableText res = new LiteralText("");
+    boolean firstRound = true;
 
     for (MutableText mt : mutables) {
+      if (firstRound) {
+        firstRound = false;
+        res = mt;
+        continue;
+      }
+
       res = res.append(delimMutable).append(mt);
     }
 
@@ -413,7 +415,7 @@ public class LocationsMod implements ModInitializer {
     return new LiteralText(s).setStyle(Style.EMPTY.withColor(Formatting.WHITE));
   }
 
-  private String blockPosToString(BlockPos pos) {
+  public static String blockPosToString(BlockPos pos) {
     return "" + pos.getX() + " " + pos.getY() + " " + pos.getZ();
   }
 
