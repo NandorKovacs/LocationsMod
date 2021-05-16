@@ -13,21 +13,11 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.PersistentState;
 
 public class Saver extends PersistentState {
-  private String kecs = "wohooo";
   private Set<UUID> privatePlayers = new HashSet<>();
   private Map<UUID, Map<String, Position>> locations = new HashMap<>();
 
   public Saver(String kex) {
     super(kex);
-  }
-
-  public String getString() {
-    return kecs;
-  }
-
-  public void setString(String kecs) {
-    this.kecs = kecs;
-    markDirty();
   }
 
   public boolean getPlayerPublicity(UUID player) {
@@ -82,7 +72,6 @@ public class Saver extends PersistentState {
 
   @Override
   public void fromTag(CompoundTag tag) {
-    LocationsMod.log(Level.WARN, "fromTag indul");
     CompoundTag privates = tag.getCompound("privatePlayers");
     privates.getKeys().forEach(stringUUID -> {
       privatePlayers.add(UUID.fromString(stringUUID));
@@ -100,9 +89,6 @@ public class Saver extends PersistentState {
         locations.get(UUID.fromString(stringUUID)).put(locname, pos);
       });
     });
-
-    kecs = tag.getString("kecs2");
-    LocationsMod.log(Level.WARN, "fromTag vége, kecs = " + kecs);
   }
 
   @Override
@@ -124,7 +110,6 @@ public class Saver extends PersistentState {
 
     tag.put("locationPlayers", locationPlayers);
     tag.put("privatePlayers", privates);
-    tag.putString("kecs2", kecs);
     return tag;
   }
 }

@@ -51,24 +51,6 @@ public class LocationsMod implements ModInitializer {
   //@formatter:off
   private void registerCommands() {
     CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
-      dispatcher.register(literal("teststring")
-        .then(literal("get")
-          .executes(ctx -> {
-            sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), createDefaultMutable(saver.getString()), ctx.getSource().getWorld(), false, false);
-            return 0;
-          })
-        )
-        .then(literal("set")
-          .then(argument("string", StringArgumentType.string())
-            .executes(ctx -> {
-              saver.setString(StringArgumentType.getString(ctx, "string"));
-              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), createDefaultMutable("done"), ctx.getSource().getWorld(), false, false);
-              return 0;
-            })
-          )
-        )
-      );
-
       dispatcher.register(literal("loc")
         .then(literal("get")
           .then(argument("player", EntityArgumentType.player())
