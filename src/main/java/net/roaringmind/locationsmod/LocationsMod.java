@@ -27,6 +27,7 @@ import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.BlockPos.Mutable;
 import net.minecraft.world.World;
 import net.minecraft.world.dimension.DimensionType;
 
@@ -209,6 +210,15 @@ public class LocationsMod implements ModInitializer {
               )
             )
           )
+          .then(literal("delete")
+            .then(argument("locname", StringArgumentType.string())
+              .executes(ctx -> {
+                MutableText message = manageDelete(ctx.getSource().getPlayer().getUuid(), StringArgumentType.getString(ctx, "locname"));
+                sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+                return 0;
+              })
+            )
+          )
         )
       );
     });
@@ -356,6 +366,17 @@ public class LocationsMod implements ModInitializer {
     saver.setLoc(source, newname, pos);
     saver.removeLoc(source, locname);
     return createDefaultMutable(String.format(locRenameConfirm, locname, newname));
+  }
+
+  String successfullDelete = "Successfully deleted location \"%s\"";
+  private MutableText manageDelete(UUID source, String locname) {
+    if (saver.getLoc(source, locname) == null) {
+      return createDefaultMutable(couldntFindLocSelf);
+    }
+
+    saver.removeLoc(source, locname);
+
+    return createDefaultMutable(String.format(successfullDelete, locname));
   }
 
   private MutableText help(HelpEnum type) {
