@@ -7,7 +7,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.apache.logging.log4j.Level;
-import net.minecraft.nbt.NbtCompound;
+
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.PersistentState;
 
@@ -15,12 +16,8 @@ public class Saver extends PersistentState {
   private Set<UUID> privatePlayers = new HashSet<>();
   private Map<UUID, Map<String, Position>> locations = new HashMap<>();
 
-  public Saver() {
-  }
-
-  public Saver(Set<UUID> privatePlayers, Map<UUID, Map<String, Position>> locations) {
-    this.privatePlayers = privatePlayers;
-    this.locations = locations;
+  public Saver(String kex) {
+    super(kex);
   }
 
   public boolean getPlayerPublicity(UUID player) {
@@ -74,18 +71,39 @@ public class Saver extends PersistentState {
   }
 
   @Override
-  public NbtCompound writeNbt(NbtCompound tag) {
+  public void fromTag(CompoundTag tag) {
+    CompoundTag privates = tag.getCompound("privatePlayers");
+    privates.getKeys().forEach(stringUUID -> {
+      privatePlayers.add(UUID.fromString(stringUUID));
+    });
+
+    CompoundTag locationPlayers = tag.getCompound("locationPlayers");
+    locationPlayers.getKeys().forEach(stringUUID -> {
+      locations.computeIfAbsent(UUID.fromString(stringUUID), value -> {
+        return new HashMap<>();
+      });
+
+      CompoundTag locNames = locationPlayers.getCompound(stringUUID);
+      locNames.getKeys().forEach(locname -> {
+        Position pos = Position.fromTag(locNames.getCompound(locname));
+        locations.get(UUID.fromString(stringUUID)).put(locname, pos);
+      });
+    });
+  }
+
+  @Override
+  public CompoundTag toTag(CompoundTag tag) {
     LocationsMod.log(Level.WARN, "totag fut");
-    NbtCompound privates = new NbtCompound();
+    CompoundTag privates = new CompoundTag();
     privatePlayers.forEach(uuid -> {
       privates.putBoolean(uuid.toString(), true);
     });
 
-    NbtCompound locationPlayers = new NbtCompound();
+    CompoundTag locationPlayers = new CompoundTag();
     locations.keySet().forEach(uuid -> {
-      NbtCompound locNames = new NbtCompound();
+      CompoundTag locNames = new CompoundTag();
       locations.get(uuid).entrySet().forEach(loc -> {
-        locNames.put(loc.getKey(), loc.getValue().toTag(new NbtCompound()));
+        locNames.put(loc.getKey(), loc.getValue().toTag(new CompoundTag()));
       });
       locationPlayers.put(uuid.toString(), locNames);
     });

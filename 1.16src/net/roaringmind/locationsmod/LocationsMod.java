@@ -4,11 +4,8 @@ import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 import com.mojang.brigadier.arguments.BoolArgumentType;
@@ -23,7 +20,6 @@ import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.command.argument.BlockPosArgumentType;
 import net.minecraft.command.argument.EntityArgumentType;
-import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.LiteralText;
@@ -31,8 +27,7 @@ import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.registry.MutableRegistry;
-import net.minecraft.util.registry.Registry;
+import net.minecraft.util.math.BlockPos.Mutable;
 import net.minecraft.world.World;
 import net.minecraft.world.dimension.DimensionType;
 
@@ -43,36 +38,13 @@ public class LocationsMod implements ModInitializer {
 
   public static final String MOD_ID = "locationsmod";
   public static final String MOD_NAME = "LocationsMod";
-
   @Override
   public void onInitialize() {
     log(Level.INFO, "Initializing");
     registerCommands();
 
     ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-      saver = server.getWorld(World.OVERWORLD).getPersistentStateManager().getOrCreate((nbt) -> {
-
-        Set<UUID> privatePlayers = new HashSet<>();
-        Map<UUID, Map<String, Position>> locations = new HashMap<>();
-        NbtCompound privates = nbt.getCompound("privatePlayers");
-        privates.getKeys().forEach(stringUUID -> {
-          privatePlayers.add(UUID.fromString(stringUUID));
-        });
-
-        NbtCompound locationPlayers = nbt.getCompound("locationPlayers");
-        locationPlayers.getKeys().forEach(stringUUID -> {
-          locations.computeIfAbsent(UUID.fromString(stringUUID), value -> {
-            return new HashMap<>();
-          });
-
-          NbtCompound locNames = locationPlayers.getCompound(stringUUID);
-          locNames.getKeys().forEach(locname -> {
-            Position pos = Position.fromTag(locNames.getCompound(locname));
-            locations.get(UUID.fromString(stringUUID)).put(locname, pos);
-          });
-        });
-        return new Saver(privatePlayers, locations);
-      }, () -> new Saver(), MOD_ID);
+      saver = server.getWorld(World.OVERWORLD).getPersistentStateManager().getOrCreate(() -> new Saver(MOD_ID), MOD_ID);
 
     });
   }
@@ -82,13 +54,6 @@ public class LocationsMod implements ModInitializer {
     CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
       dispatcher.register(literal("loc")
         .then(literal("get")
-          .then(argument("locname", StringArgumentType.string())
-              .executes(ctx -> {
-                MutableText message = get(ctx.getSource().getPlayer().getUuid(), ctx.getSource().getPlayer().getUuid(), StringArgumentType.getString(ctx, "locname"));
-                sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
-                return 0;
-              })
-            )
           .then(argument("player", EntityArgumentType.player())
             .then(argument("locname", StringArgumentType.string())
               .executes(ctx -> {
@@ -97,6 +62,13 @@ public class LocationsMod implements ModInitializer {
                 return 0;
               })
             )
+          )
+          .then(argument("locname", StringArgumentType.string())
+            .executes(ctx -> {
+              MutableText message = get(ctx.getSource().getPlayer().getUuid(), ctx.getSource().getPlayer().getUuid(), StringArgumentType.getString(ctx, "locname"));
+              sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
+              return 0;
+            })
           )
         )
         .then(literal("player")
@@ -323,8 +295,7 @@ public class LocationsMod implements ModInitializer {
 
   private MutableText list(UUID source, UUID target, String targetName) {
     List<MutableText> res = new ArrayList<>();
-    res.add(createDefaultMutable(String.format(listHead, targetName))
-        .setStyle(Style.EMPTY.withColor(Formatting.LIGHT_PURPLE)));
+    res.add(createDefaultMutable(String.format(listHead, targetName)).setStyle(Style.EMPTY.withColor(Formatting.LIGHT_PURPLE)));
     for (Map.Entry<String, Position> entry : saver.getAllLocs(target).entrySet()) {
       if (target != source && !entry.getValue().getPublic()) {
         continue;
@@ -398,7 +369,6 @@ public class LocationsMod implements ModInitializer {
   }
 
   String successfullDelete = "Successfully deleted location \"%s\"";
-
   private MutableText manageDelete(UUID source, String locname) {
     if (saver.getLoc(source, locname) == null) {
       return createDefaultMutable(couldntFindLocSelf);
@@ -453,22 +423,15 @@ public class LocationsMod implements ModInitializer {
   }
 
   private DimensionEnum getDimension(DimensionType dimtype, MinecraftServer mcserver) {
-    MutableRegistry<DimensionType> dimReg = mcserver.getRegistryManager().getMutable(Registry.DIMENSION_TYPE_KEY);
-    ;
+    DimensionType end = mcserver.getRegistryManager().getDimensionTypes().get(DimensionType.THE_END_ID);
+    DimensionType overworld = mcserver.getRegistryManager().getDimensionTypes().get(DimensionType.OVERWORLD_ID);
+    DimensionType nether = mcserver.getRegistryManager().getDimensionTypes().get(DimensionType.THE_NETHER_ID);
 
-    int dimId = dimReg.getRawId(dimtype);
-    int endId = dimReg.getRawId(dimReg.get(DimensionType.THE_END_ID));
-    int overId = dimReg.getRawId(dimReg.get(DimensionType.OVERWORLD_ID));
-    int netherId = dimReg.getRawId(dimReg.get(DimensionType.THE_NETHER_ID));
-
-    log(Level.INFO, "current dim" + String.valueOf(dimId) + "\n" + "nether dim" + String.valueOf(netherId) + "\n"
-        + "over dim" + String.valueOf(overId) + "\n" + "end dim" + String.valueOf(endId));
-
-    if (dimId == endId) {
+    if (dimtype.equals(end)) {
       return DimensionEnum.END;
-    } else if (dimId == overId) {
+    } else if (dimtype.equals(overworld)) {
       return DimensionEnum.OVERWOLRD;
-    } else if (dimId == netherId) {
+    } else if (dimtype.equals(nether)) {
       return DimensionEnum.NETHER;
     } else {
       return DimensionEnum.NODIM;

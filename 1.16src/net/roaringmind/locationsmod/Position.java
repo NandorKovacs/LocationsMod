@@ -3,13 +3,13 @@ package net.roaringmind.locationsmod;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.text.ClickEvent;
-import net.minecraft.text.ClickEvent.Action;
 import net.minecraft.text.HoverEvent;
 import net.minecraft.text.LiteralText;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
+import net.minecraft.text.ClickEvent.Action;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
 
@@ -27,7 +27,7 @@ public class Position {
   }
 
   public MutableText toMutableText() {
-    MutableText coords = new LiteralText(" " + x + " " + y + " " + z).setStyle(Style.EMPTY.withColor(Formatting.WHITE).obfuscated(false));
+    MutableText coords = new LiteralText(" " + x + " " + y + " " + z).setStyle(Style.EMPTY.withColor(Formatting.WHITE));
     return dim.toMutableText().append(coords);
   }
 
@@ -57,7 +57,7 @@ public class Position {
     return isPublic;
   }
 
-  public static Position fromTag(NbtCompound tag) {
+  public static Position fromTag(CompoundTag tag) {
     int x = tag.getInt("x");
     int y = tag.getInt("y");
     int z = tag.getInt("z");
@@ -67,7 +67,7 @@ public class Position {
     return new Position(new BlockPos(x, y, z), dim, isPublic);
   }
 
-  public NbtCompound toTag(NbtCompound tag) {
+  public CompoundTag toTag(CompoundTag tag) {
     tag.putInt("dim", dim.toInt());
     tag.putInt("x", x);
     tag.putInt("y", y);
