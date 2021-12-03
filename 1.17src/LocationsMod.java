@@ -134,13 +134,13 @@ public class LocationsMod implements ModInitializer {
             .then(argument("locname", StringArgumentType.string())
               .then(argument("public", BoolArgumentType.bool())
                 .executes(ctx -> {
-                  MutableText message = set(ctx.getSource().getPlayer().getUuid(), BlockPosArgumentType.getBlockPos(ctx, "coords"), StringArgumentType.getString(ctx, "locname"), BoolArgumentType.getBool(ctx, "public"), getDimension(ctx.getSource().getWorld().getDimension(), ctx.getSource().getServer()));
+                  MutableText message = set(ctx.getSource().getPlayer().getUuid(), BlockPosArgumentType.getBlockPos(ctx, "coords"), StringArgumentType.getString(ctx, "locname"), BoolArgumentType.getBool(ctx, "public"), getDimension(ctx.getSource().getWorld().getDimension(), ctx.getSource().getMinecraftServer()));
                   sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
                   return 0;
                 })
               )
               .executes(ctx -> {
-                MutableText message = set(ctx.getSource().getPlayer().getUuid(), BlockPosArgumentType.getBlockPos(ctx, "coords"), StringArgumentType.getString(ctx, "locname"), true, getDimension(ctx.getSource().getWorld().getDimension(), ctx.getSource().getServer()));
+                MutableText message = set(ctx.getSource().getPlayer().getUuid(), BlockPosArgumentType.getBlockPos(ctx, "coords"), StringArgumentType.getString(ctx, "locname"), true, getDimension(ctx.getSource().getWorld().getDimension(), ctx.getSource().getMinecraftServer()));
                 sendPlayerMessage(ctx.getSource().getPlayer().getUuid(), message, ctx.getSource().getWorld(), false, true);
                 return 0;
               })

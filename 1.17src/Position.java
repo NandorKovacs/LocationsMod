@@ -27,7 +27,7 @@ public class Position {
   }
 
   public MutableText toMutableText() {
-    MutableText coords = new LiteralText(" " + x + " " + y + " " + z).setStyle(Style.EMPTY.withColor(Formatting.WHITE));
+    MutableText coords = new LiteralText(" " + x + " " + y + " " + z).setStyle(Style.EMPTY.withColor(Formatting.WHITE).obfuscated(false));
     return dim.toMutableText().append(coords);
   }
 
